@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+
+    body {
+        font: 10px sans-serif;
+    }
+
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+
+    .x.axis path {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+</style>
+<body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+
+<script>
+
+    /*---------Sets up that panel/graph and colors that will be displayed---------*/
+    var margin = {top: 20, right: 20, bottom: 30, left: 40},
+            width = 960 - margin.left - margin.right,
+            height = 500 - margin.top - margin.bottom;
+
+    var format = d3.time.format("%d-%b");
+
+    // For Area
+    var x = d3.time.scale()
+            .range([0, width]);
+    // For Bars
+    var x0 = d3.scale.ordinal()
+            .rangeRoundBands([0, width], .1);
+
+    var x1 = d3.scale.ordinal();
+
+    // For Area
+    var y = d3.scale.linear()
+            .range([height, 0]);
+
+    var color = d3.scale.ordinal()
+            .range(["#FF0040", "#2EFE2E", "#0000FF"]); // Red, Green Blue
+
+    var z = d3.scale.category20c();
+
+    var xAxis = d3.svg.axis()
+            .scale(x0)
+            .orient("bottom");
+
+    var xAxis1 = d3.svg.axis()
+            .scale(x)
+            .orient("bottom")
+            .tickFormat(d3.time.format("%d-%b"));
+
+    // For Bars
+    var yAxis = d3.svg.axis()
+            .scale(y)
+            .orient("left")
+            .tickFormat(d3.format(".2s"));
+
+    // For Area
+    var yAxis1 = d3.svg.axis()
+            .scale(y)
+            .orient("left");
+
+    // Multiple area charts
+    var stack = d3.layout.stack()
+            .offset("zero")
+            .values(function(d) { return d.values; })
+            .x(function(d) { return d.date; })
+            .y(function(d) { return d.value; });
+
+    var nest = d3.nest()
+            .key(function(d) { return d.key; });
+
+    var area = d3.svg.area()
+            .interpolate("basis")
+            .x(function(d) { return x(d.date); })
+            .y0(function(d) { return y(d.y0); })
+            .y1(function(d) { return y(d.y0 + d.y); });
+
+    var svg = d3.select("body").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    //Top Text
+    svg.append("text")
+            .attr("x", (width / 2))
+            .attr("y", 0 - (margin.top / 2) + 2)
+            .attr("text-anchor", "middle")
+            .style("font-size", "16px")
+            .style("text-decoration", "underline")
+            .text("Yahoo -  Associated Press, CNN Money, Capital Cube")
+
+    /*---------Gets Data for BarChart---------*/
+    d3.csv("short_data.csv", function(error, data) {
+        var dates = d3.keys(data[0]).filter(function(key) { return key !== "date"; });
+
+        data.forEach(function(d) {
+            d.ages = dates.map(function(name) {
+                return {
+                    name: name, value: +d[name]
+                };
+            });
+        });
+
+        /*---------Bar Chart---------*/
+        d3.select("#btnBar")
+                .on("click", function(d) {
+
+                    svg.selectAll(".layer").remove();// id = # | class = .
+
+                    svg.selectAll("g").remove();
+
+                    // Scale the range of the data
+                    x0.domain(data.map(function(d) { return d.date; }));
+                    x1.domain(dates).rangeRoundBands([0, x0.rangeBand()]);
+                    y.domain([0, d3.max(data, function(d) { return d3.max(d.ages, function(d) { return d.value; }); })]);
+
+                    //X Axis control
+                    svg.append("g")
+                            .attr("class", "x axis")
+                            .call(xAxis)
+                            .attr("transform", "translate(0," + height + ")")
+                            .style("text-anchor", "end");
+
+                    //Y Axis control
+                    svg.append("g")
+                            .attr("class", "y axis")
+                            .call(yAxis)
+                            .append("text")
+                            .attr("transform", "rotate(-90)")
+                            .attr("y", 6)
+                            .attr("dy", ".71em")
+                            .style("text-anchor", "end")
+                            .text("# of Articles");
+
+                    // Associates data with dates
+                    var date = svg.selectAll(".date")
+                            .data(data)
+                            .enter().append("g")
+                            .attr("class", "g")
+                            .attr("transform", function(d) { return "translate(" + x0(d.date) + ",0)"; });
+
+                    legend();
+
+                    date.selectAll(".bar")
+                            .data(function (d) {
+                                return d.ages;
+                            })
+
+                            .enter()
+                            .append("rect")
+                            .attr("class", "bar")
+                            .attr("width", x1.rangeBand())
+                            .attr("x", function (d) {
+                                return x1(d.name);
+                            })
+                            .attr("y", function (d) {
+                                return y(d.value);
+                            })
+                            .attr("height", function (d) {
+                                return height - y(d.value);
+                            })
+                            .style("fill", function (d) {
+                                return color(d.name);
+                            });
+
+                })
+
+        /*---------Legend for diagram---------*/
+        function legend() {
+            var legend = svg.selectAll(".legend")
+                    .data(dates.slice())
+                    .enter().append("g")
+                    .attr("class", "legend")
+                    .attr("transform", function (d, i) {
+                        return "translate(0," + i * 20 + ")";
+                    });
+
+            legend.append("rect")
+                    .attr("x", width - 18)
+                    .attr("width", 18)
+                    .attr("height", 18)
+                    .style("fill", color);
+
+            legend.append("text")
+                    .attr("x", width - 24)
+                    .attr("y", 9)
+                    .attr("dy", ".35em")
+                    .style("text-anchor", "end")
+                    .text(function (d) {
+                        return d;
+                    });
+        }
+    });
+
+    /*---------Gets Data for AreaChart---------*/
+    d3.csv("data2.csv", function(data) {
+        data.forEach(function(d) {
+
+            d.date = format.parse(d.date);
+            d.value = +d.value;
+        });
+
+        var layers = stack(nest.entries(data));
+
+        d3.select("#btnArea")
+                .on("click", function(d,i) {
+
+                   // Removes everything
+                    svg.selectAll("g")
+                            .remove();
+
+                    // Axis control
+                    x.domain(d3.extent(data, function(d) { return d.date; }));
+                    y.domain([0, d3.max(data, function(d) { return d.y0 + d.y; })]);
+
+                    svg.append("g")
+                            .attr("class", "x axis")
+                            .attr("transform", "translate(0," + height + ")")
+                            .call(xAxis1);
+
+                    svg.append("g")
+                            .attr("class", "y axis")
+                            .call(yAxis);
+
+                    svg.selectAll(".layer")
+                            .data(layers)
+                            .enter().append("path")
+                            .attr("class", "layer")
+                            .attr("d", function(d) { return area(d.values); })
+                            .style("fill", function(d, i) {
+                                return color(i); });
+                })
+    });
+
+</script>
+<form style="width: 140px">
+    <input id="btnArea" value="Area Chart" type="button"/>
+    <input id="btnBar" value="Bar Chart" type="button"/>
+</form>
